@@ -1,123 +1,125 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VectorDownloader — TikTok Downloader</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VectorDownloader - TikTok Video Downloader</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    body { background: linear-gradient(180deg,#e8f0ff,#ffffff); }
-    .card { border-radius: 12px; }
-    .brand { font-weight:700; color:#0b5ed7 }
-    .result-video { max-width:100%; border-radius:8px; box-shadow:0 6px 18px rgba(13,38,76,0.08) }
-    .small-muted { font-size:0.85rem; color:#6c757d }
+    body {
+      background: linear-gradient(135deg, #0066ff, #00c3ff);
+      min-height: 100vh;
+      color: #fff;
+      font-family: 'Poppins', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .card {
+      border-radius: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      background: #fff;
+      color: #000;
+      width: 100%;
+      max-width: 600px;
+      padding: 25px;
+    }
+    .btn-custom {
+      background: #007bff;
+      color: #fff;
+      border-radius: 12px;
+      padding: 10px 20px;
+    }
+    .btn-custom:hover {
+      background: #0056d2;
+      color: #fff;
+    }
+    .preview video, .preview audio, .preview img {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+    footer {
+      margin-top: 30px;
+      font-size: 14px;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
-  <div class="container py-5">
-    <div class="row justify-content-center">
-      <div class="col-md-8">
-        <div class="card p-4">
-          <div class="d-flex align-items-center mb-3">
-            <img src="https://raw.githubusercontent.com/ragzasoyyy/subfindernickname/main/logo.png" alt="logo" width="48" height="48" onerror="this.style.display='none'">
-            <div class="ms-3">
-              <div class="brand">VectorDownloader</div>
-              <div class="small-muted">Download video, foto, dan musik TikTok — cepat & gratis</div>
-            </div>
-          </div>
+  <div class="card">
+    <h3 class="fw-bold mb-3">🎵 VectorDownloader</h3>
+    <p>Download Video, Musik, dan Gambar TikTok tanpa watermark!</p>
 
-          <form id="form">
-            <div class="mb-3">
-              <input id="url" type="url" class="form-control form-control-lg" placeholder="Tempel link TikTok di sini (mis: https://www.tiktok.com/@user/video/123...)" required>
-            </div>
-            <div class="d-grid gap-2">
-              <button id="btn" class="btn btn-primary btn-lg">Cari & Download</button>
-            </div>
-          </form>
-
-          <div id="alert" class="mt-3" style="display:none"></div>
-
-          <div id="result" class="mt-4" style="display:none">
-            <div id="meta" class="mb-3"></div>
-            <div id="media"></div>
-          </div>
-
-          <div class="mt-4 small text-muted text-center">Mirip Snaptik / SSSTik — Untuk konten publik. Hormati hak cipta.</div>
-        </div>
-      </div>
+    <div class="mb-3">
+      <input type="text" id="tiktokUrl" class="form-control" placeholder="Tempelkan tautan TikTok di sini...">
     </div>
+    <button id="downloadBtn" class="btn btn-custom w-100 mb-3">Download</button>
+
+    <div id="status" class="text-center text-muted"></div>
+    <div class="preview mt-3" id="preview"></div>
   </div>
 
-<script>
-  const form = document.getElementById('form');
-  const btn = document.getElementById('btn');
-  const urlInput = document.getElementById('url');
-  const alertBox = document.getElementById('alert');
-  const resultBox = document.getElementById('result');
-  const metaBox = document.getElementById('meta');
-  const mediaBox = document.getElementById('media');
+  <footer>© 2025 VectorDigital — Powered by TikWM API</footer>
 
-  function showAlert(type, msg) {
-    alertBox.style.display = 'block';
-    alertBox.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
-  }
+  <script>
+    const btn = document.getElementById('downloadBtn');
+    const input = document.getElementById('tiktokUrl');
+    const preview = document.getElementById('preview');
+    const status = document.getElementById('status');
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    resultBox.style.display='none';
-    mediaBox.innerHTML=''; metaBox.innerHTML=''; alertBox.style.display='none';
-    btn.innerText = 'Mencari...'; btn.disabled=true;
-
-    try {
-      const u = urlInput.value.trim();
-      if(!u) { showAlert('warning','Masukkan URL TikTok'); btn.disabled=false; btn.innerText='Cari & Download'; return; }
-
-      const apiUrl = `/api/download?url=${encodeURIComponent(u)}`;
-      const r = await fetch(apiUrl);
-      if(!r.ok) { const j = await r.json().catch(()=>null); throw new Error((j && j.error) || 'Gagal mengambil data'); }
-      const data = await r.json();
-
-      // Meta
-      metaBox.innerHTML = `<div class="fw-semibold">${data.author || ''}</div><div class="small-muted">${data.description || ''}</div>`;
-
-      // Video
-      if (data.video && Array.isArray(data.video.urls) && data.video.urls.length) {
-        const first = data.video.urls[0];
-        // show preview
-        mediaBox.innerHTML += `<div class="mb-3"><video class="result-video" controls src="${first}"></video></div>`;
-
-        // download links (proxy to avoid CORS)
-        data.video.urls.forEach((u, idx) => {
-          const enc = encodeURIComponent(u);
-          const proxy = `/api/proxy?u=${enc}`;
-          mediaBox.innerHTML += `<a class="btn btn-outline-primary me-2 mb-2" href="${proxy}" download="video_${idx+1}.mp4">Download Video ${idx+1}</a>`;
-        });
+    btn.addEventListener('click', async () => {
+      const url = input.value.trim();
+      if (!url) {
+        status.textContent = '❌ Masukkan tautan TikTok terlebih dahulu.';
+        return;
       }
 
-      // Images
-      if (data.images && data.images.length) {
-        data.images.forEach((img, i) => {
-          mediaBox.innerHTML += `<div class="mb-2"><img src="${img}" class="img-fluid rounded"></div>`;
-          mediaBox.innerHTML += `<a class="btn btn-outline-success me-2 mb-2" href="${img}" download="image_${i+1}.jpg">Download Image ${i+1}</a>`;
-        });
+      preview.innerHTML = '';
+      status.textContent = '⏳ Memproses...';
+
+      try {
+        const res = await fetch(`/api/download?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+
+        if (!data.status) {
+          status.textContent = '⚠️ Gagal mendapatkan data video.';
+          return;
+        }
+
+        status.textContent = '✅ Berhasil! Pilih file untuk diunduh:';
+
+        let html = '';
+        if (data.video.no_watermark) {
+          html += `
+            <div class="mt-3">
+              <video controls src="${data.video.no_watermark}"></video>
+              <a href="${data.video.no_watermark}" download="${data.video.filename}" class="btn btn-success mt-2">Download Video</a>
+            </div>`;
+        }
+        if (data.music.play_url) {
+          html += `
+            <div class="mt-3">
+              <audio controls src="${data.music.play_url}"></audio>
+              <a href="${data.music.play_url}" download="${data.music.filename}" class="btn btn-info mt-2">Download Music</a>
+            </div>`;
+        }
+        if (data.images && data.images.length > 0) {
+          html += `<div class="mt-3"><h6>📸 Gambar:</h6>`;
+          data.images.forEach((img) => {
+            html += `<img src="${img}" class="img-fluid mb-2">`;
+          });
+          html += `</div>`;
+        }
+
+        preview.innerHTML = html;
+      } catch (err) {
+        console.error(err);
+        status.textContent = '❌ Terjadi kesalahan saat memproses.';
       }
-
-      // Music
-      if (data.music && data.music.music_url) {
-        mediaBox.innerHTML += `<div class="mt-3 small-muted">Music: ${data.music.title || ''} — ${data.music.author || ''}</div>`;
-        const encm = encodeURIComponent(data.music.music_url);
-        mediaBox.innerHTML += `<a class="btn btn-outline-warning me-2 mb-2" href="/api/proxy?u=${encm}" download="music.mp3">Download Audio</a>`;
-      }
-
-      resultBox.style.display='block';
-
-    } catch (err) {
-      console.error(err);
-      showAlert('danger', err && err.message ? err.message : 'Error');
-    } finally {
-      btn.disabled=false; btn.innerText='Cari & Download';
-    }
-  });
-</script>
+    });
+  </script>
 </body>
 </html>
