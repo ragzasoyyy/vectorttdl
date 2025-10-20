@@ -1,8 +1,21 @@
 {
-  "name": "vectordownloader",
+  "name": "vector-downloader-nextjs",
   "version": "1.0.0",
-  "main": "api/download.js",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
   "dependencies": {
-    "node-fetch": "^2.6.11"
+    "next": "14.1.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "node-fetch": "2.6.9"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.4.14",
+    "postcss": "8.4.24",
+    "tailwindcss": "3.4.7"
   }
 }
