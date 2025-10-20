@@ -1,0 +1,12 @@
+{
+  "name": "vectordownloader",
+  "version": "1.0.0",
+  "description": "TikTok downloader (VectorDownloader) - API + frontend for Vercel",
+  "main": "api/download.js",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "node-fetch": "2.6.9"
+  }
+}
