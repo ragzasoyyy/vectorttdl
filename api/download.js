@@ -1,120 +1,118 @@
 // api/download.js
-// Serverless function untuk Vercel /api/download?url=<tiktok-url>
-// Mengambil metadata dari halaman TikTok (SIGI_STATE) dan mengembalikan direct urls untuk video/photo/music
+// VectorDownloader — fix fallback TikWM (anti error JSON parse)
 
-const fetch = require('node-fetch');
+const fetch = require("node-fetch");
 
 module.exports = async (req, res) => {
   try {
-    const url = (req.query.url || req.body && req.body.url || '').trim();
-    if (!url) return res.status(400).json({ error: 'Missing url parameter. Use /api/download?url=<tiktok-url>' });
+    const url =
+      (req.query.url || (req.body && req.body.url) || "").trim();
+    if (!url)
+      return res
+        .status(400)
+        .json({ error: "Missing url parameter. Use /api/download?url=<tiktok-url>" });
 
-    // Normalize TikTok url (ensure http(s)://)
-    const target = url.startsWith('http') ? url : `https://${url}`;
+    const target = url.startsWith("http") ? url : `https://${url}`;
 
+    // --- Step 1: coba parse SIGI_STATE seperti biasa ---
     const resp = await fetch(target, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9'
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
       },
     });
 
     const html = await resp.text();
 
-    // Try to extract JSON in <script id="SIGI_STATE">...</script>
-    const sigiMatch = html.match(/<script id="SIGI_STATE" type="application\/json">([\s\S]*?)<\/script>/);
-    let state = null;
+    let item = null;
+    const sigiMatch = html.match(
+      /<script id="SIGI_STATE" type="application\/json">([\s\S]*?)<\/script>/
+    );
+
     if (sigiMatch && sigiMatch[1]) {
       try {
-        state = JSON.parse(sigiMatch[1]);
-      } catch (e) {
-        // ignore parse error
-      }
-    }
-
-    // Fallback: search for 'window.__INIT_PROPS' or 'window['SIGI_STATE']'
-    if (!state) {
-      const windowMatch = html.match(/window\.__INIT_PROPS\s*=\s*({[\s\S]*?});\s*window/);
-      if (windowMatch && windowMatch[1]) {
-        try { state = JSON.parse(windowMatch[1]); } catch (e) {}
-      }
-    }
-
-    if (!state) {
-      return res.status(500).json({ error: 'Failed to parse TikTok page JSON' });
-    }
-
-    // Try to find the item data (ItemModule or ItemList)
-    let item = null;
-
-    if (state && state.ItemModule) {
-      const keys = Object.keys(state.ItemModule);
-      if (keys.length) item = state.ItemModule[keys[0]];
-    }
-
-    // Another possible path
-    if (!item && state && state.ItemList) {
-      const listKeys = Object.keys(state.ItemList);
-      if (listKeys.length) {
-        const first = state.ItemList[listKeys[0]];
-        if (first && first.length && state.ItemModule && state.ItemModule[first[0]]) {
-          item = state.ItemModule[first[0]];
+        const state = JSON.parse(sigiMatch[1]);
+        if (state.ItemModule) {
+          const keys = Object.keys(state.ItemModule);
+          if (keys.length) item = state.ItemModule[keys[0]];
         }
+      } catch {}
+    }
+
+    // --- Step 2: fallback ke API TikWM kalau gagal ---
+    if (!item) {
+      const tikwm = await fetch("https://www.tikwm.com/api/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118 Safari/537.36",
+        },
+        body: new URLSearchParams({ url: target }),
+      });
+      const tikwmData = await tikwm.json();
+
+      if (tikwmData && tikwmData.data) {
+        const d = tikwmData.data;
+        const result = {
+          source: target,
+          author: d.author && d.author.nickname,
+          description: d.title || "",
+          video: {
+            urls: [d.play || d.wmplay].filter(Boolean),
+          },
+          music: {
+            title: d.music_info && d.music_info.title,
+            author: d.music_info && d.music_info.author,
+            music_url: d.music || (d.music_info && d.music_info.play),
+          },
+          images: d.images || [],
+          via: "tikwm",
+        };
+        return res.json(result);
       }
     }
 
-    if (!item) {
-      // last resort: try to find JSON in 'application/json' segments
-      return res.status(500).json({ error: 'Could not locate video item data in page' });
+    // --- Step 3: kalau item ditemukan dari SIGI_STATE ---
+    if (item) {
+      const video = item.video || {};
+      const urls = [];
+      if (video.downloadAddr) urls.push(video.downloadAddr);
+      if (video.playAddr) urls.push(video.playAddr);
+      if (video.urls && Array.isArray(video.urls))
+        urls.push(...video.urls);
+      const uniqueUrls = [...new Set(urls)].slice(0, 5);
+
+      const music = item.music || {};
+      const musicInfo = {
+        title: music.title || "",
+        author: music.authorName || "",
+        music_url: music.playUrl || music.downloadUrl || null,
+      };
+
+      const result = {
+        source: target,
+        author: item.author || "",
+        description: item.desc || "",
+        video: { urls: uniqueUrls },
+        music: musicInfo,
+        images: item.images || [],
+        via: "sigi",
+      };
+
+      return res.json(result);
     }
 
-    // Extract data
-    const author = item.author || item.authorName || (item.author && item.author.uniqueId) || null;
-    const description = item.desc || item.description || '';
-
-    // Video object
-    const video = item.video || {};
-    // playAddr often contains watermark version; downloadAddr or the 'urls' may contain real direct urls
-    const urls = (video && video.downloadAddr) ? [video.downloadAddr] : (video && video.playAddr ? [video.playAddr] : []);
-
-    // Also some versions have 'urls' array
-    if (video && Array.isArray(video.urls) && video.urls.length) {
-      urls.unshift(...video.urls);
-    }
-
-    // Reduce duplicates
-    const uniqueUrls = [...new Set(urls)].slice(0, 5);
-
-    // Music
-    const music = item.music || null;
-    const musicInfo = music ? {
-      id: music.mid || music.id || null,
-      title: music.title || music.musicName || null,
-      author: music.authorName || music.artist || null,
-      music_url: music.playUrl || music.downloadUrl || null
-    } : null;
-
-    // Image / slides
-    const images = [];
-    if (item.imageUrl) images.push(item.imageUrl);
-    if (item.images && Array.isArray(item.images)) images.push(...item.images);
-
-    const result = {
-      source: target,
-      author,
-      description,
-      video: {
-        urls: uniqueUrls
-      },
-      music: musicInfo,
-      images: images,
-      raw_item: item
-    };
-
-    return res.json(result);
-
+    // --- Jika tetap gagal ---
+    return res.status(500).json({
+      error: "Failed to extract video info from TikTok",
+    });
   } catch (err) {
-    console.error('download error', err && err.stack ? err.stack : err);
-    return res.status(500).json({ error: 'Internal server error', details: String(err && err.message ? err.message : err) });
+    console.error("download error", err);
+    return res.status(500).json({
+      error: "Internal server error",
+      details: err.message,
+    });
   }
 };
